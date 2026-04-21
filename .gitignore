@@ -3,3 +3,5 @@
 iam.db
 *.exe
 vendor
+Makefile
+iam
