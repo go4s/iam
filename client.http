@@ -1,0 +1,165 @@
+### IAM Blog Service API Testing
+
+# @name Health Check
+GET http://localhost:8080/health
+
+###
+# @name Register Admin
+POST http://localhost:8080/auth/register
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin_password",
+  "role": "Admin"
+}
+
+###
+# @name Register Editor
+POST http://localhost:8080/auth/register
+Content-Type: application/json
+
+{
+  "username": "editor1",
+  "password": "editor_password",
+  "role": "Editor"
+}
+
+###
+# @name Register Subscriber
+POST http://localhost:8080/auth/register
+Content-Type: application/json
+
+{
+  "username": "sub1",
+  "password": "sub_password",
+  "role": "Subscriber"
+}
+
+###
+# @name Login
+POST http://localhost:8080/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin_password"
+}
+
+> {% client.global.set("auth_token", response.body.token); %}
+
+###
+# @name Add Policy (Editor can write articles)
+POST http://localhost:8080/api/v1/policies
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "sub": "Editor",
+  "obj": "/api/v1/articles",
+  "act": "POST"
+}
+
+###
+# @name Add Policy (Subscriber can read articles)
+POST http://localhost:8080/api/v1/policies
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "sub": "Subscriber",
+  "obj": "/api/v1/articles",
+  "act": "GET"
+}
+
+###
+# @name Add Role Inheritance (Admin inherits Editor)
+POST http://localhost:8080/api/v1/policies/grouping
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "sub": "Admin",
+  "role": "Editor"
+}
+
+###
+# @name Add Policy (Admin can manage policies)
+POST http://localhost:8080/api/v1/policies
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "sub": "Admin",
+  "obj": "/api/v1/policies",
+  "act": "POST"
+}
+
+###
+# @name Add Policy (Admin can list policies)
+POST http://localhost:8080/api/v1/policies
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "sub": "Admin",
+  "obj": "/api/v1/policies",
+  "act": "GET"
+}
+
+###
+# @name Register New Resource: Projects (Editor can manage)
+POST http://localhost:8080/api/v1/policies
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "sub": "Editor",
+  "obj": "/api/v1/projects",
+  "act": "POST"
+}
+
+###
+# @name Get Policies
+GET http://localhost:8080/api/v1/policies
+Authorization: Bearer {{auth_token}}
+
+###
+# @name Get Grouping Policies
+GET http://localhost:8080/api/v1/policies/grouping
+Authorization: Bearer {{auth_token}}
+
+###
+# @name Remove Policy
+DELETE http://localhost:8080/api/v1/policies
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "sub": "Subscriber",
+  "obj": "/api/v1/articles",
+  "act": "GET"
+}
+
+###
+# @name External Gateway: Validate Token
+# Used by gateway to check if a token is valid and who the user is
+POST http://localhost:8080/auth/validate
+Content-Type: application/json
+
+{
+  "token": "{{auth_token}}"
+}
+
+###
+# @name Resource Manager: Remote Enforce
+# Used by other microservices to check if a user has permission
+POST http://localhost:8080/api/v1/enforce
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "sub": "editor1",
+  "obj": "/api/v1/articles",
+  "act": "POST"
+}
