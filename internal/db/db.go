@@ -1,9 +1,9 @@
 package db
 
 import (
-	"github.com/go4s/iam/internal/model"
-	_ "modernc.org/sqlite"
-	"xorm.io/xorm"
+    "github.com/go4s/iam/internal/model"
+    _ "modernc.org/sqlite"
+    "xorm.io/xorm"
 )
 
 var Engine *xorm.Engine
@@ -19,9 +19,16 @@ func InitDB() error {
     Engine.ShowSQL(true)
     
     // Auto migrate
-    if err := Engine.Sync(new(model.User)); err != nil {
+    if err := Engine.Sync(
+        new(model.User),
+        new(model.Role),
+        new(model.Permission),
+        new(model.UserRole),
+        new(model.RolePermission),
+        new(model.EntityFormat),
+    ); err != nil {
         return err
     }
-    
+    Engine.SetMaxOpenConns(1)
     return Engine.Ping()
 }

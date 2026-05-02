@@ -3,13 +3,12 @@ package main
 import (
     "log"
     
-    "github.com/go4s/iam/internal/auth"
     "github.com/go4s/iam/internal/db"
     "github.com/go4s/iam/internal/handler"
     "github.com/go4s/iam/internal/middleware"
     "github.com/go4s/iam/internal/repository"
     "github.com/go4s/iam/internal/service"
-    
+
     "github.com/gin-gonic/gin"
 )
 
@@ -17,15 +16,19 @@ func main() {
     if err := db.InitDB(); err != nil {
         log.Fatalf("Failed to initialize database: %v", err)
     }
-    
-    if err := auth.InitCasbin(); err != nil {
-        log.Fatalf("Failed to initialize Casbin: %v", err)
+
+    // 加载实体格式配置
+    if err := service.LoadFormats(); err != nil {
+        log.Fatalf("Failed to load formats: %v", err)
     }
     
     userRepo := &repository.UserRepository{}
     authService := service.NewAuthService(userRepo)
     authHandler := handler.NewAuthHandler(authService)
-    policyHandler := &handler.PolicyHandler{}
+    userHandler := handler.NewUserHandler()
+    roleHandler := handler.NewRoleHandler()
+    permHandler := handler.NewPermissionHandler()
+    systemHandler := handler.NewSystemHandler()
     
     r := gin.Default()
     
@@ -33,26 +36,38 @@ func main() {
         c.JSON(200, gin.H{"status": "UP"})
     })
     
-    authGroup := r.Group("/auth")
+    // API v1 基础路径
+    api := r.Group("/api/v1")
+    
+    // 认证接口（不需要 JWT）
+    authGroup := api.Group("/auth")
     {
-        authGroup.POST("/register", authHandler.Register)
         authGroup.POST("/login", authHandler.Login)
-        authGroup.POST("/validate", authHandler.Validate)
     }
     
-    api := r.Group("/api/v1")
-    api.Use(middleware.JWTMiddleware())
-    api.Use(middleware.CasbinMiddleware())
+    // 需要认证的接口
+    authorized := api.Group("")
+    authorized.Use(middleware.JWTMiddleware())
     {
-        api.POST("/enforce", policyHandler.Enforce)
-        policies := api.Group("/policies")
-        {
-            policies.GET("", policyHandler.GetPolicies)
-            policies.POST("", policyHandler.AddPolicy)
-            policies.DELETE("", policyHandler.RemovePolicy)
-            policies.GET("/grouping", policyHandler.GetGroupingPolicies)
-            policies.POST("/grouping", policyHandler.AddGroupingPolicy)
-        }
+        authorized.GET("/auth/me", authHandler.Me)
+        
+        // 用户接口
+        authorized.GET("/user", userHandler.List)
+        authorized.GET("/user/:id", userHandler.Focus)
+        authorized.POST("/user/:id/commands", userHandler.Command)
+        
+        // 角色接口
+        authorized.GET("/role", roleHandler.List)
+        authorized.GET("/role/:id", roleHandler.Focus)
+        authorized.POST("/role/:id/commands", roleHandler.Command)
+        
+        // 权限接口
+        authorized.GET("/permission", permHandler.List)
+        authorized.GET("/permission/:id", permHandler.Focus)
+        authorized.POST("/permission/:id/commands", permHandler.Command)
+        
+        // 系统接口
+        authorized.POST("/system/reload-formats", systemHandler.ReloadFormats)
     }
     
     if err := r.Run(); err != nil {
