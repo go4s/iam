@@ -25,6 +25,52 @@ func NewUserService() *UserService {
 	}
 }
 
+// checkPermission 检查用户是否拥有指定权限
+func (s *UserService) checkPermission(userID int64, permissionCode string) error {
+	roleIDs, err := s.userRoleRepo.GetRoleIDsByUserID(userID)
+	if err != nil {
+		return err
+	}
+
+	for _, roleID := range roleIDs {
+		permIDs, err := s.rolePermissionRepo.GetPermissionIDsByRoleID(roleID)
+		if err != nil {
+			continue
+		}
+		for _, permID := range permIDs {
+			perm, err := s.getPermissionByID(permID)
+			if err != nil || perm == nil {
+				continue
+			}
+			if perm.Code == permissionCode {
+				return nil
+			}
+		}
+	}
+
+	return errors.New("permission denied: " + permissionCode)
+}
+
+// getPermissionByID 通过 ID 获取权限（带缓存）
+func (s *UserService) getPermissionByID(id int64) (*model.Permission, error) {
+	permRepo := &repository.PermissionRepository{}
+	return permRepo.GetByID(id)
+}
+
+// getCommandRequiredPermission 获取命令所需的权限码
+func getCommandRequiredPermission(action string) string {
+	switch action {
+	case "reset_password", "assign_role":
+		return "user:update"
+	case "disable":
+		return "user:delete"
+	case "create_user":
+		return "user:create"
+	default:
+		return ""
+	}
+}
+
 // ListUsers 列出用户（摘要格式）
 func (s *UserService) ListUsers(page, size int, keyword string) ([]map[string]any, int64, error) {
 	users, total, err := s.userRepo.List(page, size, keyword)
@@ -146,15 +192,29 @@ func containsAdmin(roles []string) bool {
 	return false
 }
 
-// ExecuteUserCommand 执行用户命令
-func (s *UserService) ExecuteUserCommand(userID int64, action string, params map[string]any) (map[string]any, error) {
+// ExecuteUserCommand 执行用户命令（带权限校验）
+func (s *UserService) ExecuteUserCommand(callerID int64, targetUserID int64, action string, params map[string]any) (map[string]any, error) {
+	// 1. 检查命令所需的权限
+	requiredPerm := getCommandRequiredPermission(action)
+	if requiredPerm != "" {
+		if err := s.checkPermission(callerID, requiredPerm); err != nil {
+			return nil, err
+		}
+	}
+
+	// 2. 安全检查：禁止 self-disable
+	if action == "disable" && callerID == targetUserID {
+		return nil, errors.New("cannot disable yourself")
+	}
+
+	// 3. 执行命令
 	switch action {
 	case "reset_password":
-		return s.resetPassword(userID, params)
+		return s.resetPassword(targetUserID, params)
 	case "assign_role":
-		return s.assignRole(userID, params)
+		return s.assignRole(targetUserID, params)
 	case "disable":
-		return s.disableUser(userID)
+		return s.disableUser(targetUserID)
 	case "create_user":
 		return s.createUser(params)
 	default:
@@ -195,9 +255,20 @@ func (s *UserService) assignRole(userID int64, params map[string]any) (map[strin
 }
 
 func (s *UserService) disableUser(userID int64) (map[string]any, error) {
-	// 简单实现：删除用户（或标记为禁用，这里直接删除）
-	// 实际生产环境应使用状态字段
-	return nil, errors.New("disable not implemented")
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	user.Status = "disabled"
+	if err := s.userRepo.Update(user); err != nil {
+		return nil, err
+	}
+
+	return map[string]any{"message": "用户已禁用", "status": "disabled"}, nil
 }
 
 func (s *UserService) createUser(params map[string]any) (map[string]any, error) {
@@ -224,6 +295,7 @@ func (s *UserService) createUser(params map[string]any) (map[string]any, error) 
 		Username:     username,
 		PasswordHash: string(hashed),
 		Role:         "user", // 默认角色，废弃字段但保留
+		Status:       "active",
 	}
 	if err := s.userRepo.Create(user); err != nil {
 		return nil, err

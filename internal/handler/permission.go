@@ -21,7 +21,7 @@ func (h *PermissionHandler) List(c *gin.Context) {
 
 	items, total, err := h.permService.ListPermissions(page, size)
 	if err != nil {
-		JSONErr(c, http.StatusInternalServerError, CodeInternalError, err.Error(), nil)
+		JSONErr(c, http.StatusInternalServerError, CodeInternalError, sanitizeError(err), nil)
 		return
 	}
 
@@ -38,7 +38,7 @@ func (h *PermissionHandler) Focus(c *gin.Context) {
 
 	data, err := h.permService.FocusPermission(id)
 	if err != nil {
-		JSONErr(c, http.StatusNotFound, CodeEntityNotFound, err.Error(), map[string]any{
+		JSONErr(c, http.StatusNotFound, CodeEntityNotFound, sanitizeError(err), map[string]any{
 			"template": "permission",
 			"id":       idStr,
 		})
@@ -64,7 +64,7 @@ func (h *PermissionHandler) Command(c *gin.Context) {
 
 	result, err := h.permService.ExecutePermissionCommand(id, req.Action, req.Params)
 	if err != nil {
-		JSONErr(c, http.StatusBadRequest, CodeBadRequest, err.Error(), nil)
+		JSONErr(c, http.StatusBadRequest, CodeBadRequest, sanitizeError(err), nil)
 		return
 	}
 

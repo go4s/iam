@@ -177,6 +177,45 @@ func TestUser(t *testing.T) {
 		resp := ParseResponse(t, w)
 		AssertSuccess(t, resp)
 	})
+
+		t.Run("Command: Disable User", func(t *testing.T) {
+		w := MakeRequest(t, router, "POST", "/api/v1/user/2/commands", map[string]any{
+			"action": "disable",
+			"params": map[string]any{},
+		}, token)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		// 验证用户已禁用（无法登录）
+		w = MakeRequest(t, router, "POST", "/api/v1/auth/login", map[string]string{
+			"username": "editor",
+			"password": "admin123",
+		}, "")
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401 for disabled user, got %d", w.Code)
+		}
+	})
+
+	t.Run("Command: Self-Disable Forbidden", func(t *testing.T) {
+		// admin 不能禁用自己
+		w := MakeRequest(t, router, "POST", "/api/v1/user/1/commands", map[string]any{
+			"action": "disable",
+			"params": map[string]any{},
+		}, token)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected status 403 for self-disable, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := ParseResponse(t, w)
+		AssertError(t, resp, "1004")
+	})
 }
 
 // TestRole 测试角色接口
@@ -785,21 +824,22 @@ func TestPermissionControl(t *testing.T) {
 		AssertSuccess(t, resp)
 	})
 
-	t.Run("Editor Cannot Create User", func(t *testing.T) {
-		// editor 用户的 create_user command 不应该存在
-		w := MakeRequest(t, router, "GET", "/api/v1/user/user:2", nil, editorToken)
-		resp := ParseResponse(t, w)
-		AssertSuccess(t, resp)
+	t.Run("Editor Cannot Execute Create User", func(t *testing.T) {
+		// editor 尝试执行 create_user 命令应该被拒绝
+		w := MakeRequest(t, router, "POST", "/api/v1/user/2/commands", map[string]any{
+			"action": "create_user",
+			"params": map[string]any{
+				"username": "hacker",
+				"password": "password123",
+			},
+		}, editorToken)
 
-		data, _ := resp["data"].(map[string]any)
-		commands, _ := data["commands"].([]any)
-
-		for _, cmd := range commands {
-			command, _ := cmd.(map[string]any)
-			if command["action"] == "create_user" {
-				t.Error("Editor should not have create_user command")
-			}
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected status 403, got %d: %s", w.Code, w.Body.String())
 		}
+
+		resp := ParseResponse(t, w)
+		AssertError(t, resp, "1004")
 	})
 
 	t.Run("Admin Has All Commands", func(t *testing.T) {

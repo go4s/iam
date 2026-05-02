@@ -21,7 +21,7 @@ func (h *RoleHandler) List(c *gin.Context) {
 
 	items, total, err := h.roleService.ListRoles(page, size)
 	if err != nil {
-		JSONErr(c, http.StatusInternalServerError, CodeInternalError, err.Error(), nil)
+		JSONErr(c, http.StatusInternalServerError, CodeInternalError, sanitizeError(err), nil)
 		return
 	}
 
@@ -38,7 +38,7 @@ func (h *RoleHandler) Focus(c *gin.Context) {
 
 	data, err := h.roleService.FocusRole(id)
 	if err != nil {
-		JSONErr(c, http.StatusNotFound, CodeEntityNotFound, err.Error(), map[string]any{
+		JSONErr(c, http.StatusNotFound, CodeEntityNotFound, sanitizeError(err), map[string]any{
 			"template": "role",
 			"id":       idStr,
 		})
@@ -64,7 +64,7 @@ func (h *RoleHandler) Command(c *gin.Context) {
 
 	result, err := h.roleService.ExecuteRoleCommand(id, req.Action, req.Params)
 	if err != nil {
-		JSONErr(c, http.StatusBadRequest, CodeBadRequest, err.Error(), nil)
+		JSONErr(c, http.StatusBadRequest, CodeBadRequest, sanitizeError(err), nil)
 		return
 	}
 

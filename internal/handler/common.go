@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -67,6 +68,18 @@ func JSONErr(c *gin.Context, httpCode int, code string, message string, details 
 		Message: message,
 		Data:    details,
 	})
+}
+
+// sanitizeError 脱敏错误信息，避免泄露内部细节
+func sanitizeError(err error) string {
+	msg := err.Error()
+	// 隐藏 SQL 错误细节
+	if strings.Contains(msg, "SQL logic error") ||
+		strings.Contains(msg, "no such column") ||
+		strings.Contains(msg, "syntax error") {
+		return "内部错误"
+	}
+	return msg
 }
 
 // GetPageSize 从查询参数获取分页信息

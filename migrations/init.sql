@@ -16,9 +16,6 @@ INSERT OR IGNORE INTO permission (i_d, name, code, resource, action, description
 (5, '管理角色', 'role:manage', 'role', 'manage', '允许管理角色', datetime('now'), datetime('now')),
 (6, '管理权限', 'permission:manage', 'permission', 'manage', '允许管理权限', datetime('now'), datetime('now'));
 
--- 3. 创建 admin 用户（密码: admin123）
-INSERT OR IGNORE INTO user (i_d, username, password_hash, role, created_at, updated_at)
-VALUES (1, 'admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', datetime('now'), datetime('now'));
 
 -- 4. 关联 admin 用户与 admin 角色
 INSERT OR IGNORE INTO user_role (user_i_d, role_i_d, created_at)

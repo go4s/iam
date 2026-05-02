@@ -50,6 +50,6 @@ func (r *UserRepository) List(page, size int, keyword string) ([]model.User, int
 }
 
 func (r *UserRepository) Update(user *model.User) error {
-	_, err := db.Engine.ID(user.ID).Cols("username", "password_hash", "updated_at").Update(user)
+	_, err := db.Engine.ID(user.ID).Cols("username", "password_hash", "status", "updated_at").Update(user)
 	return err
 }

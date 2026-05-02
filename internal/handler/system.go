@@ -16,7 +16,7 @@ func NewSystemHandler() *SystemHandler {
 
 func (h *SystemHandler) ReloadFormats(c *gin.Context) {
 	if err := service.ReloadFormats(); err != nil {
-		JSONErr(c, http.StatusInternalServerError, CodeInternalError, err.Error(), nil)
+		JSONErr(c, http.StatusInternalServerError, CodeInternalError, sanitizeError(err), nil)
 		return
 	}
 	JSONOK(c, map[string]any{"message": "formats reloaded"})

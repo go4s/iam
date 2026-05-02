@@ -16,7 +16,7 @@ var jwtSecret = func() []byte {
     if secret := os.Getenv("JWT_SECRET"); secret != "" {
         return []byte(secret)
     }
-    return []byte("your-secret-key") // Default for development
+    panic("should never reach here, JWT_SECRET is required in environment")
 }()
 
 type AuthService struct {
@@ -39,11 +39,16 @@ func (s *AuthService) Login(username, password string) (string, map[string]any, 
     if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
         return "", nil, errors.New("invalid credentials")
     }
-    
+
+    if user.Status == "disabled" {
+        return "", nil, errors.New("user account is disabled")
+    }
+
     token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-        "sub":  user.Username,
-        "role": user.Role,
-        "exp":  time.Now().Add(time.Hour * 24).Unix(),
+        "sub":    user.Username,
+        "user_id": user.ID,
+        "role":   user.Role,
+        "exp":    time.Now().Add(time.Hour * 24).Unix(),
     })
     
     tokenString, err := token.SignedString(jwtSecret)

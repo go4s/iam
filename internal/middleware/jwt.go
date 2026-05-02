@@ -49,6 +49,9 @@ func JWTMiddleware() gin.HandlerFunc {
         
         c.Set("username", claims["sub"])
         c.Set("role", claims["role"])
+        if userID, ok := claims["user_id"]; ok {
+            c.Set("user_id", userID)
+        }
         c.Next()
     }
 }

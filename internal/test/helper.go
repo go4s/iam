@@ -131,6 +131,8 @@ func MakeRequest(t *testing.T, router *gin.Engine, method, path string, body any
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
+	// 设置 RemoteAddr 避免限流中间件 panic
+	req.RemoteAddr = "127.0.0.1:12345"
 
 	router.ServeHTTP(w, req)
 	return w

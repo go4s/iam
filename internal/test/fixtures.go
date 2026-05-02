@@ -77,6 +77,7 @@ func LoadFixtures() error {
 		Username:     "admin",
 		PasswordHash: string(hashedPassword),
 		Role:         "admin",
+		Status:       "active",
 	}
 	if err := userRepo.Create(adminUser); err != nil {
 		return err
@@ -86,6 +87,7 @@ func LoadFixtures() error {
 		Username:     "editor",
 		PasswordHash: string(hashedPassword),
 		Role:         "editor",
+		Status:       "active",
 	}
 	if err := userRepo.Create(editorUser); err != nil {
 		return err

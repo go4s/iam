@@ -49,7 +49,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 	userInfo, err := h.authService.Me(username.(string))
 	if err != nil {
-		JSONErr(c, http.StatusInternalServerError, CodeInternalError, err.Error(), nil)
+		JSONErr(c, http.StatusInternalServerError, CodeInternalError, sanitizeError(err), nil)
 		return
 	}
 

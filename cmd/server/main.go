@@ -38,8 +38,9 @@ func main() {
     
     // API v1 基础路径
     api := r.Group("/api/v1")
+    api.Use(middleware.RateLimitMiddleware())
     
-    // 认证接口（不需要 JWT）
+    // 认证接口（不需要 JWT，但会被限流）
     authGroup := api.Group("/auth")
     {
         authGroup.POST("/login", authHandler.Login)
