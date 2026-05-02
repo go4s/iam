@@ -1,8 +1,10 @@
 package test
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -540,5 +542,312 @@ func TestRegression(t *testing.T) {
 		}
 
 		fmt.Println("Regression test passed!")
+	})
+}
+
+// TestBoundary 边界值测试
+func TestBoundary(t *testing.T) {
+	router := SetupTestServer()
+	defer Teardown()
+
+	token := LoginAndGetToken(t, router, "admin", "admin123")
+
+	t.Run("Page Size Zero", func(t *testing.T) {
+		w := MakeRequest(t, router, "GET", "/api/v1/user?page=1&size=0", nil, token)
+		resp := ParseResponse(t, w)
+		// size=0 时应该使用默认值
+		AssertSuccess(t, resp)
+	})
+
+	t.Run("Page Size Too Large", func(t *testing.T) {
+		w := MakeRequest(t, router, "GET", "/api/v1/user?page=1&size=999", nil, token)
+		resp := ParseResponse(t, w)
+		// size 应该被限制在最大值
+		AssertSuccess(t, resp)
+	})
+
+	t.Run("Negative Page", func(t *testing.T) {
+		w := MakeRequest(t, router, "GET", "/api/v1/user?page=-1&size=10", nil, token)
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+	})
+
+	t.Run("Invalid Entity ID", func(t *testing.T) {
+		w := MakeRequest(t, router, "GET", "/api/v1/user/abc", nil, token)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("Empty Username", func(t *testing.T) {
+		w := MakeRequest(t, router, "POST", "/api/v1/user/1/commands", map[string]any{
+			"action": "create_user",
+			"params": map[string]any{
+				"username": "",
+				"password": "password123",
+			},
+		}, token)
+		resp := ParseResponse(t, w)
+		AssertError(t, resp, "1002")
+	})
+
+	t.Run("Long Username", func(t *testing.T) {
+		w := MakeRequest(t, router, "POST", "/api/v1/user/1/commands", map[string]any{
+			"action": "create_user",
+			"params": map[string]any{
+				"username": "a very long username that exceeds normal limits and should still be handled gracefully by the system",
+				"password": "password123",
+			},
+		}, token)
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+	})
+
+	t.Run("Empty Request Body", func(t *testing.T) {
+		w := MakeRequest(t, router, "POST", "/api/v1/user/1/commands", nil, token)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("Invalid JSON", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/api/v1/user/1/commands", bytes.NewBufferString("{invalid json}"))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400, got %d", w.Code)
+		}
+	})
+}
+
+// TestBusinessCommands 业务命令完整流程测试
+func TestBusinessCommands(t *testing.T) {
+	router := SetupTestServer()
+	defer Teardown()
+
+	token := LoginAndGetToken(t, router, "admin", "admin123")
+
+	t.Run("Assign Role to User", func(t *testing.T) {
+		// 给用户2（editor）分配admin角色
+		w := MakeRequest(t, router, "POST", "/api/v1/user/2/commands", map[string]any{
+			"action": "assign_role",
+			"params": map[string]any{
+				"role_id": 1,
+			},
+		}, token)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		// 验证用户角色已更新
+		w = MakeRequest(t, router, "GET", "/api/v1/user/2", nil, token)
+		resp = ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		data, _ := resp["data"].(map[string]any)
+		roles, _ := data["roles:"].([]any)
+
+		foundAdmin := false
+		for _, r := range roles {
+			if r.(string) == "role:admin" {
+				foundAdmin = true
+				break
+			}
+		}
+
+		if !foundAdmin {
+			t.Error("Role assignment failed: admin role not found")
+		}
+	})
+
+	t.Run("Add Permission to Role", func(t *testing.T) {
+		w := MakeRequest(t, router, "POST", "/api/v1/role/2/commands", map[string]any{
+			"action": "add_permission",
+			"params": map[string]any{
+				"permission_id": 1,
+			},
+		}, token)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		// 验证权限已添加
+		w = MakeRequest(t, router, "GET", "/api/v1/role/2", nil, token)
+		resp = ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		data, _ := resp["data"].(map[string]any)
+		permissions, _ := data["permissions:"].([]any)
+
+		if len(permissions) == 0 {
+			t.Error("Permission add failed: no permissions found")
+		}
+	})
+
+	t.Run("Remove Permission from Role", func(t *testing.T) {
+		// 先添加权限
+		MakeRequest(t, router, "POST", "/api/v1/role/2/commands", map[string]any{
+			"action": "add_permission",
+			"params": map[string]any{
+				"permission_id": 2,
+			},
+		}, token)
+
+		// 再移除权限
+		w := MakeRequest(t, router, "POST", "/api/v1/role/2/commands", map[string]any{
+			"action": "remove_permission",
+			"params": map[string]any{
+				"permission_id": 2,
+			},
+		}, token)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+	})
+
+	t.Run("Clone Role and Verify", func(t *testing.T) {
+		w := MakeRequest(t, router, "POST", "/api/v1/role/1/commands", map[string]any{
+			"action": "clone",
+			"params": map[string]any{
+				"new_name": "克隆角色",
+			},
+		}, token)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		// 验证新角色存在
+		w = MakeRequest(t, router, "GET", "/api/v1/role", nil, token)
+		resp = ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		data, _ := resp["data"].(map[string]any)
+		items, _ := data["items"].([]any)
+
+		if len(items) != 3 {
+			t.Errorf("Expected 3 roles after clone, got %d", len(items))
+		}
+	})
+
+	t.Run("Reset Password and Login", func(t *testing.T) {
+		// 重置密码
+		w := MakeRequest(t, router, "POST", "/api/v1/user/2/commands", map[string]any{
+			"action": "reset_password",
+			"params": map[string]any{
+				"new_password": "new_editor_pass",
+			},
+		}, token)
+
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		// 使用新密码登录
+		newToken := LoginAndGetToken(t, router, "editor", "new_editor_pass")
+		if newToken == "" {
+			t.Error("Login with new password failed")
+		}
+	})
+}
+
+// TestPermissionControl 权限控制测试
+func TestPermissionControl(t *testing.T) {
+	router := SetupTestServer()
+	defer Teardown()
+
+	adminToken := LoginAndGetToken(t, router, "admin", "admin123")
+	editorToken := LoginAndGetToken(t, router, "editor", "admin123")
+
+	t.Run("Editor Can Access User List", func(t *testing.T) {
+		w := MakeRequest(t, router, "GET", "/api/v1/user", nil, editorToken)
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+		}
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+	})
+
+	t.Run("Editor Cannot Create User", func(t *testing.T) {
+		// editor 用户的 create_user command 不应该存在
+		w := MakeRequest(t, router, "GET", "/api/v1/user/user:2", nil, editorToken)
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		data, _ := resp["data"].(map[string]any)
+		commands, _ := data["commands"].([]any)
+
+		for _, cmd := range commands {
+			command, _ := cmd.(map[string]any)
+			if command["action"] == "create_user" {
+				t.Error("Editor should not have create_user command")
+			}
+		}
+	})
+
+	t.Run("Admin Has All Commands", func(t *testing.T) {
+		w := MakeRequest(t, router, "GET", "/api/v1/user/user:1", nil, adminToken)
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		data, _ := resp["data"].(map[string]any)
+		commands, _ := data["commands"].([]any)
+
+		requiredCommands := []string{"reset_password", "assign_role", "disable", "create_user"}
+		found := make(map[string]bool)
+
+		for _, cmd := range commands {
+			command, _ := cmd.(map[string]any)
+			action, _ := command["action"].(string)
+			found[action] = true
+		}
+
+		for _, required := range requiredCommands {
+			if !found[required] {
+				t.Errorf("Admin missing command: %s", required)
+			}
+		}
+	})
+
+	t.Run("Invalid Token", func(t *testing.T) {
+		w := MakeRequest(t, router, "GET", "/api/v1/user", nil, "invalid_token")
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("Expired Token", func(t *testing.T) {
+		// 使用一个明显伪造的token
+		w := MakeRequest(t, router, "GET", "/api/v1/user", nil, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U")
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401, got %d", w.Code)
+		}
+	})
+
+	t.Run("Missing Authorization Header", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/user", nil)
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401, got %d", w.Code)
+		}
 	})
 }
