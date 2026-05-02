@@ -24,6 +24,18 @@ func (r *PermissionRepository) GetByID(id int64) (*model.Permission, error) {
 	return perm, nil
 }
 
+func (r *PermissionRepository) GetByCode(code string) (*model.Permission, error) {
+	perm := new(model.Permission)
+	has, err := db.Engine.Where("code = ?", code).Get(perm)
+	if err != nil {
+		return nil, err
+	}
+	if !has {
+		return nil, nil
+	}
+	return perm, nil
+}
+
 func (r *PermissionRepository) List(page, size int) ([]model.Permission, int64, error) {
 	var perms []model.Permission
 	total, err := db.Engine.Limit(size, (page-1)*size).FindAndCount(&perms)

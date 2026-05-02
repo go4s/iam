@@ -139,8 +139,8 @@ func (s *UserService) FocusUser(id int64) (map[string]any, error) {
 func (s *UserService) buildUserCommands(userID int64, roles []string) []map[string]any {
 	commands := []map[string]any{
 		{
-			"action":  "reset_password",
-			"label":   "重置密码",
+			"action": "reset_password",
+			"label":  "重置密码",
 			"params": []map[string]any{
 				{"name": "new_password", "type": "string", "required": true, "label": "新密码"},
 			},
@@ -148,8 +148,8 @@ func (s *UserService) buildUserCommands(userID int64, roles []string) []map[stri
 			"sync":    true,
 		},
 		{
-			"action":  "assign_role",
-			"label":   "分配角色",
+			"action": "assign_role",
+			"label":  "分配角色",
 			"params": []map[string]any{
 				{"name": "role_id", "type": "entity", "template": "role", "required": true, "label": "角色"},
 			},
@@ -168,8 +168,8 @@ func (s *UserService) buildUserCommands(userID int64, roles []string) []map[stri
 	// admin 用户额外显示 create_user
 	if containsAdmin(roles) {
 		commands = append(commands, map[string]any{
-			"action":  "create_user",
-			"label":   "创建用户",
+			"action": "create_user",
+			"label":  "创建用户",
 			"params": []map[string]any{
 				{"name": "username", "type": "string", "required": true, "label": "用户名"},
 				{"name": "password", "type": "string", "required": true, "label": "密码"},
@@ -294,7 +294,6 @@ func (s *UserService) createUser(params map[string]any) (map[string]any, error) 
 	user := &model.User{
 		Username:     username,
 		PasswordHash: string(hashed),
-		Role:         "user", // 默认角色，废弃字段但保留
 		Status:       "active",
 	}
 	if err := s.userRepo.Create(user); err != nil {

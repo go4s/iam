@@ -41,7 +41,7 @@ func (s *RoleService) ListRoles(page, size int) ([]map[string]any, int64, error)
 	var result []map[string]any
 	for _, r := range roles {
 		data := map[string]any{
-			"id":   fmt.Sprintf("role:%s", r.Code),
+			"id":   fmt.Sprintf("role:%d", r.ID),
 			"name": r.Name,
 			"code": r.Code,
 		}
@@ -92,10 +92,10 @@ func (s *RoleService) FocusRole(id int64) (map[string]any, error) {
 	}
 
 	data := map[string]any{
-		"id":          fmt.Sprintf("role:%s", role.Code),
-		"name":        role.Name,
-		"code":        role.Code,
-		"description": role.Description,
+		"id":           fmt.Sprintf("role:%d", role.ID),
+		"name":         role.Name,
+		"code":         role.Code,
+		"description":  role.Description,
 		"permissions:": permissions,
 		"users:":       users,
 	}
@@ -109,8 +109,8 @@ func (s *RoleService) FocusRole(id int64) (map[string]any, error) {
 func (s *RoleService) buildRoleCommands(roleID int64) []map[string]any {
 	return []map[string]any{
 		{
-			"action":  "add_permission",
-			"label":   "添加权限",
+			"action": "add_permission",
+			"label":  "添加权限",
 			"params": []map[string]any{
 				{"name": "permission_id", "type": "entity", "template": "permission", "required": true, "label": "权限"},
 			},
@@ -118,8 +118,8 @@ func (s *RoleService) buildRoleCommands(roleID int64) []map[string]any {
 			"sync":    true,
 		},
 		{
-			"action":  "remove_permission",
-			"label":   "移除权限",
+			"action": "remove_permission",
+			"label":  "移除权限",
 			"params": []map[string]any{
 				{"name": "permission_id", "type": "entity", "template": "permission", "required": true, "label": "权限"},
 			},
@@ -127,8 +127,8 @@ func (s *RoleService) buildRoleCommands(roleID int64) []map[string]any {
 			"sync":    true,
 		},
 		{
-			"action":  "clone",
-			"label":   "复制角色",
+			"action": "clone",
+			"label":  "复制角色",
 			"params": []map[string]any{
 				{"name": "new_name", "type": "string", "required": true, "label": "新角色名称"},
 			},
@@ -206,7 +206,7 @@ func (s *RoleService) cloneRole(roleID int64, params map[string]any) (map[string
 	}
 
 	return map[string]any{
-		"id":      fmt.Sprintf("role:%s", newRole.Code),
+		"id":      fmt.Sprintf("role:%d", newRole.ID),
 		"name":    newRole.Name,
 		"message": "角色复制成功",
 	}, nil

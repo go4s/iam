@@ -178,7 +178,7 @@ func TestUser(t *testing.T) {
 		AssertSuccess(t, resp)
 	})
 
-		t.Run("Command: Disable User", func(t *testing.T) {
+	t.Run("Command: Disable User", func(t *testing.T) {
 		w := MakeRequest(t, router, "POST", "/api/v1/user/2/commands", map[string]any{
 			"action": "disable",
 			"params": map[string]any{},
@@ -265,8 +265,8 @@ func TestRole(t *testing.T) {
 			t.Fatal("Invalid data format")
 		}
 
-		if data["id"] != "role:admin" {
-			t.Errorf("Expected id role:admin, got %v", data["id"])
+		if data["id"] != "role:1" {
+			t.Errorf("Expected id 'role:1', got %v", data["id"])
 		}
 	})
 
@@ -314,8 +314,8 @@ func TestPermission(t *testing.T) {
 			t.Fatal("Items not found")
 		}
 
-		if len(items) != 4 {
-			t.Errorf("Expected 4 permissions, got %d", len(items))
+		if len(items) != 5 {
+			t.Errorf("Expected 5 permissions, got %d", len(items))
 		}
 	})
 
@@ -347,6 +347,109 @@ func TestSystem(t *testing.T) {
 
 		resp := ParseResponse(t, w)
 		AssertSuccess(t, resp)
+	})
+}
+
+// TestExternalService 外部服务接入测试
+func TestExternalService(t *testing.T) {
+	router := SetupTestServer()
+	defer Teardown()
+
+	adminToken := LoginAndGetToken(t, router, "admin", "admin123")
+	editorToken := LoginAndGetToken(t, router, "editor", "admin123")
+
+	t.Run("Register New Permission", func(t *testing.T) {
+		w := MakeRequest(t, router, "POST", "/api/v1/system/permissions", map[string]any{
+			"name":        "删除文章",
+			"code":        "article:delete",
+			"resource":    "article",
+			"action":      "delete",
+			"description": "允许删除文章",
+		}, adminToken)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		data, _ := resp["data"].(map[string]any)
+		if data["code"] != "article:delete" {
+			t.Errorf("Expected code article:delete, got %v", data["code"])
+		}
+	})
+
+	t.Run("Register Permission Without Permission", func(t *testing.T) {
+		w := MakeRequest(t, router, "POST", "/api/v1/system/permissions", map[string]any{
+			"name":     "编辑文章",
+			"code":     "article:update",
+			"resource": "article",
+			"action":   "update",
+		}, editorToken)
+
+		if w.Code != http.StatusForbidden {
+			t.Errorf("Expected status 403, got %d", w.Code)
+		}
+	})
+
+	t.Run("Check Permission By Token", func(t *testing.T) {
+		// 通过 Token 隐式获取用户检查权限
+		w := MakeRequest(t, router, "GET", "/api/v1/system/check-permission?permission_code=user:create", nil, adminToken)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		data, _ := resp["data"].(map[string]any)
+		if data["has_permission"] != true {
+			t.Error("Admin should have user:create permission")
+		}
+	})
+
+	t.Run("Check Permission By User ID", func(t *testing.T) {
+		// 通过 user_id 参数检查特定用户的权限
+		w := MakeRequest(t, router, "GET", "/api/v1/system/check-permission?user_id=2&permission_code=user:create", nil, adminToken)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		data, _ := resp["data"].(map[string]any)
+		if data["has_permission"] != false {
+			t.Error("Editor should NOT have user:create permission")
+		}
+	})
+
+	t.Run("Validate Identity And Permission", func(t *testing.T) {
+		w := MakeRequest(t, router, "POST", "/api/v1/system/validate", map[string]any{
+			"token":                adminToken,
+			"required_permissions": []string{"user:create", "user:read", "article:delete"},
+		}, "")
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := ParseResponse(t, w)
+		AssertSuccess(t, resp)
+
+		data, _ := resp["data"].(map[string]any)
+		allowed, _ := data["allowed"].([]any)
+		denied, _ := data["denied"].([]any)
+
+		if len(allowed) != 2 {
+			t.Errorf("Expected 2 allowed permissions, got %d", len(allowed))
+		}
+		if len(denied) != 1 {
+			t.Errorf("Expected 1 denied permission, got %d", len(denied))
+		}
 	})
 }
 
@@ -461,8 +564,8 @@ func TestEntityIDFormat(t *testing.T) {
 		}
 
 		id, ok := data["id"].(string)
-		if !ok || id != "role:admin" {
-			t.Errorf("Expected id 'role:admin', got %v", data["id"])
+		if !ok || id != "role:1" {
+			t.Errorf("Expected id 'role:1', got %v", data["id"])
 		}
 	})
 }
@@ -511,7 +614,7 @@ func TestCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Permission Commands Empty", func(t *testing.T) {
+	t.Run("Permission Commands Structure", func(t *testing.T) {
 		w := MakeRequest(t, router, "GET", "/api/v1/permission/1", nil, token)
 
 		resp := ParseResponse(t, w)
@@ -527,9 +630,22 @@ func TestCommands(t *testing.T) {
 			t.Fatal("Commands not found")
 		}
 
-		if len(commands) != 0 {
-			t.Errorf("Expected empty commands, got %d", len(commands))
+		if len(commands) == 0 {
+			t.Error("Expected commands, got empty")
 		}
+
+		// 检查 create_permission 命令结构
+		for _, cmd := range commands {
+			command, ok := cmd.(map[string]any)
+			if !ok {
+				t.Error("Invalid command format")
+				continue
+			}
+			if command["action"] == "create_permission" {
+				return
+			}
+		}
+		t.Error("create_permission command not found")
 	})
 }
 

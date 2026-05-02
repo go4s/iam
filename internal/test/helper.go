@@ -48,6 +48,7 @@ func SetupTestServer() *gin.Engine {
 	systemHandler := handler.NewSystemHandler()
 
 	r := gin.New()
+	r.Use(middleware.CORSMiddleware())
 
 	// API v1
 	api := r.Group("/api/v1")
@@ -73,7 +74,12 @@ func SetupTestServer() *gin.Engine {
 			authorized.GET("/permission/:id", permHandler.Focus)
 			authorized.POST("/permission/:id/commands", permHandler.Command)
 			authorized.POST("/system/reload-formats", systemHandler.ReloadFormats)
+			authorized.POST("/system/permissions", systemHandler.RegisterPermission)
+			authorized.GET("/system/check-permission", systemHandler.CheckPermission)
 		}
+
+		// 外部服务接入（无需额外认证）
+		api.POST("/system/validate", systemHandler.ValidateIdentityAndPermission)
 	}
 
 	return r

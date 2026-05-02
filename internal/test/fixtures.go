@@ -63,6 +63,7 @@ func LoadFixtures() error {
 		{Name: "读取用户", Code: "user:read", Resource: "user", Action: "read"},
 		{Name: "更新用户", Code: "user:update", Resource: "user", Action: "update"},
 		{Name: "删除用户", Code: "user:delete", Resource: "user", Action: "delete"},
+		{Name: "管理权限", Code: "permission:manage", Resource: "permission", Action: "manage"},
 	}
 	for _, p := range permissions {
 		if err := permRepo.Create(p); err != nil {
@@ -76,7 +77,6 @@ func LoadFixtures() error {
 	adminUser := &model.User{
 		Username:     "admin",
 		PasswordHash: string(hashedPassword),
-		Role:         "admin",
 		Status:       "active",
 	}
 	if err := userRepo.Create(adminUser); err != nil {
@@ -86,7 +86,6 @@ func LoadFixtures() error {
 	editorUser := &model.User{
 		Username:     "editor",
 		PasswordHash: string(hashedPassword),
-		Role:         "editor",
 		Status:       "active",
 	}
 	if err := userRepo.Create(editorUser); err != nil {

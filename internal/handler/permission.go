@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go4s/iam/internal/service"
 
@@ -50,11 +51,18 @@ func (h *PermissionHandler) Focus(c *gin.Context) {
 
 func (h *PermissionHandler) Command(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := parseEntityID(idStr)
+	targetID, err := parseEntityID(idStr)
 	if err != nil {
 		JSONErr(c, http.StatusBadRequest, CodeBadRequest, "invalid permission id", nil)
 		return
 	}
+
+	callerIDRaw, exists := c.Get("user_id")
+	if !exists {
+		JSONErr(c, http.StatusUnauthorized, CodeUnauthorized, "user context not found", nil)
+		return
+	}
+	callerID := int64(callerIDRaw.(float64))
 
 	var req CommandRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -62,9 +70,13 @@ func (h *PermissionHandler) Command(c *gin.Context) {
 		return
 	}
 
-	result, err := h.permService.ExecutePermissionCommand(id, req.Action, req.Params)
+	result, err := h.permService.ExecutePermissionCommand(callerID, targetID, req.Action, req.Params)
 	if err != nil {
-		JSONErr(c, http.StatusBadRequest, CodeBadRequest, sanitizeError(err), nil)
+		if strings.HasPrefix(err.Error(), "permission denied") {
+			JSONErr(c, http.StatusForbidden, CodeForbidden, err.Error(), nil)
+		} else {
+			JSONErr(c, http.StatusBadRequest, CodeBadRequest, sanitizeError(err), nil)
+		}
 		return
 	}
 

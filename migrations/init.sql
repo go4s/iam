@@ -18,11 +18,11 @@ INSERT OR IGNORE INTO permission (i_d, name, code, resource, action, description
 
 
 -- 4. 关联 admin 用户与 admin 角色
-INSERT OR IGNORE INTO user_role (user_i_d, role_i_d, created_at)
+INSERT OR IGNORE INTO user_role (user_id, role_id, created_at)
 VALUES (1, 1, datetime('now'));
 
 -- 5. 关联 admin 角色与所有权限
-INSERT OR IGNORE INTO role_permission (role_i_d, permission_i_d, created_at)
+INSERT OR IGNORE INTO role_permission (role_id, permission_id, created_at)
 SELECT 1, i_d, datetime('now') FROM permission;
 
 -- 6. 插入实体格式配置
@@ -82,3 +82,6 @@ VALUES ('permission', 'detail', '[
   {"name":"roles:","label":"角色","type":"entity","ref":"role","visible":true,"fold":true},
   {"name":"commands","label":"操作","type":"commands","visible":true}
 ]', datetime('now'), datetime('now'));
+
+insert or ignore into user (i_d, username, password_hash, created_at, updated_at)
+values (1, 'admin', '$2a$10$pk9Ss9Bpv/0uZ7Uz3aCf8OXkagQlCMq7uk5lZfQekONb2F8NShfY.',   datetime('now'), datetime('now'));

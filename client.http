@@ -154,6 +154,57 @@ Content-Type: application/json
 }
 
 ###
+# @name Permission: Create Permission
+POST http://localhost:8080/api/v1/permission/1/commands
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "action": "create_permission",
+  "params": {
+    "name": "删除文章",
+    "code": "article:delete",
+    "resource": "article",
+    "action": "delete",
+    "description": "允许删除文章"
+  }
+}
+
+###
+# @name External: Register Permission
+POST http://localhost:8080/api/v1/system/permissions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "name": "编辑文章",
+  "code": "article:update",
+  "resource": "article",
+  "action": "update",
+  "description": "允许编辑文章"
+}
+
+###
+# @name External: Check Permission (by Token)
+GET http://localhost:8080/api/v1/system/check-permission?permission_code=user:create
+Authorization: Bearer {{auth_token}}
+
+###
+# @name External: Check Permission (by User ID)
+GET http://localhost:8080/api/v1/system/check-permission?user_id=2&permission_code=user:create
+Authorization: Bearer {{auth_token}}
+
+###
+# @name External: Validate Identity + Permission
+POST http://localhost:8080/api/v1/system/validate
+Content-Type: application/json
+
+{
+  "token": "{{auth_token}}",
+  "required_permissions": ["user:create", "user:read"]
+}
+
+###
 # @name Reload Formats
 POST http://localhost:8080/api/v1/system/reload-formats
 Authorization: Bearer {{auth_token}}
